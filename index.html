@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14171f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>내 통역 비서</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&family=Noto+Sans+Thai:wght@400;600&family=Noto+Sans+JP:wght@400;600&display=swap">
+<style>
+/* Layout: one-screen phone app — header, language rail, conversation log, live strip, thumb-zone talk button */
+:root{
+  --bg:#f3f4f7; --surface:#ffffff; --ink:#151821; --muted:#5d6475; --line:#dde0e8;
+  --signal:#ffb800; --signal-ink:#1b1400; --me:#1f3b8f; --them:#0e7a5c; --danger:#c2362b;
+  --f-body:"IBM Plex Sans KR","Noto Sans JP","Noto Sans Thai",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#12141a; --surface:#1b1e27; --ink:#eef0f5; --muted:#9aa1b2; --line:#2b2f3b;
+  --signal:#ffc22e; --signal-ink:#1b1400; --me:#8fb0ff; --them:#5fd3ad; --danger:#ff7468; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+.app{height:100%;max-width:640px;margin:0 auto;display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+header{display:flex;align-items:center;justify-content:space-between;padding-block:12px 6px}
+h1{font-size:18px;margin:0;font-weight:700;letter-spacing:-.01em}
+h1 small{display:block;font:500 10.5px var(--f-mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.icon-btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;height:38px;padding:0 12px;font:inherit;font-size:13px;cursor:pointer}
+
+.rail{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding-block:8px}
+.lang{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:8px 4px;cursor:pointer;font:inherit;text-align:center;line-height:1.2}
+.lang b{display:block;font:500 11px var(--f-mono);letter-spacing:.06em;color:var(--muted)}
+.lang span{font-size:13.5px;font-weight:500}
+.lang[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.lang[aria-pressed="true"] b{color:var(--signal)}
+
+.log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-block:10px;min-height:0}
+.turn{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:grid;gap:4px;min-width:0}
+.turn.them{border-left:4px solid var(--them)}
+.turn.me{border-left:4px solid var(--me)}
+.turn .meta{display:flex;justify-content:space-between;align-items:center;font:500 10.5px var(--f-mono);letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.turn .src{color:var(--muted);font-size:14px;overflow-wrap:anywhere}
+.turn .dst{font-size:19px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.turn .dst.pending{color:var(--muted);font-weight:400;font-size:15px}
+.replay{border:0;background:none;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;padding:2px 4px}
+.example{font:500 10px var(--f-mono);color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:1px 6px}
+.empty-note{color:var(--muted);font-size:13px;text-align:center;padding:4px}
+
+.live{border-top:1px solid var(--line);padding-block:10px;min-height:76px;display:grid;gap:2px}
+.live .k{font-size:14px;color:var(--muted);overflow-wrap:anywhere;min-height:1.4em}
+.live .t{font-size:17px;font-weight:600;overflow-wrap:anywhere;min-height:1.4em}
+.status{font:500 11px var(--f-mono);letter-spacing:.06em;color:var(--muted);display:flex;gap:8px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.dot.on{background:var(--danger);animation:pulse 1.2s infinite}
+.dot.say{background:var(--signal)}
+@keyframes pulse{50%{opacity:.35}}
+
+.controls{display:grid;grid-template-columns:1fr auto;gap:8px;padding-block:6px 12px}
+.talk{height:68px;border:0;border-radius:18px;background:var(--signal);color:var(--signal-ink);font:700 19px var(--f-body);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px}
+.talk.active{background:var(--danger);color:#fff}
+.talk.mine.active{animation:none}
+.them-btn{height:68px;border-radius:18px;border:1.5px solid var(--them);background:var(--surface);color:var(--them);font:600 13px var(--f-body);padding:0 14px;cursor:pointer;line-height:1.25}
+.them-btn.active{background:var(--them);color:var(--surface)}
+.typebar{display:flex;gap:6px;padding-block:0 10px}
+.typebar input{flex:1;min-width:0;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:0 12px;font:inherit}
+.typebar button{height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;padding:0 14px;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+dialog{border:0;border-radius:16px;background:var(--surface);color:var(--ink);width:min(560px,calc(100% - 24px));max-height:88vh;padding:0}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.sheet{padding:18px;display:grid;gap:14px}
+.sheet h2{margin:0;font-size:17px}
+.field{display:grid;gap:5px}
+.field label,.field .lab{font:500 11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field select,.field input,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);padding:9px 10px;font:inherit}
+.field textarea{min-height:70px;resize:vertical}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:14px}
+.voices{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;font-size:12.5px}
+.voices span.ok{color:var(--them)} .voices span.no{color:var(--danger)}
+.sheet .row{display:flex;justify-content:flex-end;gap:8px}
+.primary{background:var(--ink);color:var(--bg);border:0;border-radius:10px;height:40px;padding:0 18px;font:600 14px var(--f-body);cursor:pointer}
+.warn{background:color-mix(in srgb,var(--danger) 12%,var(--surface));border:1px solid var(--danger);border-radius:12px;padding:10px 12px;font-size:13px}
+@media (prefers-reduced-motion:reduce){.dot.on{animation:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="gut">
+    <h1><small>Live Interpreter</small>내 통역 비서</h1>
+    <button class="icon-btn" id="openSettings" type="button">설정</button>
+  </header>
+
+  <div class="gut"><div class="warn" id="noStt" hidden>이 브라우저는 음성 인식을 지원하지 않아요. 안드로이드·PC는 Chrome, 아이폰은 Safari에서 열어 주세요. 아래 입력창으로 글자 통역은 바로 쓸 수 있어요.</div></div>
+
+  <nav class="rail gut" id="rail" aria-label="통역할 언어"></nav>
+
+  <main class="log gut" id="log" aria-live="polite"></main>
+
+  <section class="live gut" aria-live="polite">
+    <div class="status"><i class="dot" id="dot"></i><span id="statusText">대기 중 · 말하기를 누르세요</span></div>
+    <div class="k" id="liveSrc"></div>
+    <div class="t" id="liveDst"></div>
+  </section>
+
+  <form class="typebar gut" id="typeForm">
+    <input id="typeInput" placeholder="말하기 어려울 땐 여기에 한국어로 입력" autocomplete="off">
+    <button type="submit">통역</button>
+  </form>
+
+  <div class="controls gut">
+    <button class="talk mine" id="talkBtn" type="button">● 말하기</button>
+    <button class="them-btn" id="themBtn" type="button">상대방<br>말하기</button>
+  </div>
+</div>
+
+<dialog id="settings">
+  <form method="dialog" class="sheet" id="settingsForm">
+    <h2>설정</h2>
+    <div class="field">
+      <label for="engine">번역 엔진</label>
+      <select id="engine">
+        <option value="google">빠른 번역 (키 없이 바로 사용)</option>
+        <option value="claude">Claude (자연스러운 통역 · API 키 필요)</option>
+      </select>
+      <p class="hint">빠른 번역은 말하는 도중에도 미리보기 번역을 보여줘요. Claude는 문장이 끝날 때마다 더 자연스럽게 다듬어 번역해요.</p>
+    </div>
+    <div class="field" id="claudeFields">
+      <label for="apiKey">Anthropic API 키</label>
+      <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off">
+      <label for="model">모델</label>
+      <input id="model" value="claude-haiku-5-5">
+      <label for="tone">말투</label>
+      <select id="tone">
+        <option value="polite">정중하게 (업무·여행)</option>
+        <option value="casual">편하게 (친구)</option>
+      </select>
+      <label for="glossary">나만의 용어집</label>
+      <textarea id="glossary" placeholder="예) 김부장 = Mr. Kim&#10;우리 회사 = ABC Trading"></textarea>
+      <p class="hint">키는 이 기기의 브라우저에만 저장되고 Anthropic API로만 전송돼요.</p>
+    </div>
+    <div class="field">
+      <label for="rate">통역 음성 속도 <span id="rateVal">1.0</span>×</label>
+      <input id="rate" type="range" min="0.6" max="1.6" step="0.1" value="1">
+    </div>
+    <label class="check"><input type="checkbox" id="liveOn" checked> <span>말하는 도중 실시간 미리보기 번역 (빠른 번역에서만)</span></label>
+    <label class="check"><input type="checkbox" id="echoGuard" checked> <span>통역 음성이 나오는 동안 마이크 잠시 멈춤 (스피커 사용 시 켜두세요. 이어폰이면 끄면 더 빨라요)</span></label>
+    <div class="field">
+      <span class="lab">이 기기의 음성 지원</span>
+      <div class="voices" id="voiceList"></div>
+      <p class="hint">기기 음성이 없는 언어는 온라인 음성으로 대신 읽어요.</p>
+    </div>
+    <div class="row"><button class="primary" value="ok">저장</button></div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const LANGS = {
+    en: { code:'EN', name:'영어',   native:'English',    stt:'en-US', tts:'en-US', claude:'English' },
+    ja: { code:'JA', name:'일본어', native:'日本語',      stt:'ja-JP', tts:'ja-JP', claude:'Japanese' },
+    vi: { code:'VI', name:'베트남어', native:'Tiếng Việt', stt:'vi-VN', tts:'vi-VN', claude:'Vietnamese' },
+    th: { code:'TH', name:'태국어', native:'ไทย',        stt:'th-TH', tts:'th-TH', claude:'Thai' },
+  };
+  const KO = { code:'KO', name:'한국어', stt:'ko-KR', tts:'ko-KR', claude:'Korean' };
+
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem('interp.'+k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v){ try { localStorage.setItem('interp.'+k, JSON.stringify(v)); } catch {} },
+  };
+
+  const S = Object.assign({
+    target:'en', engine:'google', apiKey:'', model:'claude-haiku-5-5', tone:'polite',
+    glossary:'', rate:1, liveOn:true, echoGuard:true,
+  }, store.get('settings', {}));
+  const save = () => store.set('settings', S);
+
+  /* ---------- language rail ---------- */
+  const rail = $('rail');
+  function drawRail(){
+    rail.innerHTML = '';
+    for (const [k, L] of Object.entries(LANGS)) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'lang';
+      b.setAttribute('aria-pressed', String(k === S.target));
+      b.innerHTML = `<b>${L.code}</b><span>${L.name}</span>`;
+      b.onclick = () => { S.target = k; save(); drawRail(); if (listening) restartFor(mode); };
+      rail.appendChild(b);
+    }
+  }
+
+  /* ---------- log ---------- */
+  const log = $('log');
+  let hasExamples = false;
+  function addTurn({ who, src, dst, dstLang, example }) {
+    if (hasExamples && !example) { log.innerHTML = ''; hasExamples = false; }
+    const el = document.createElement('article');
+    el.className = 'turn ' + who;
+    const label = who === 'me' ? `나 · KO → ${LANGS[S.target].code}` : `상대방 · ${LANGS[S.target].code} → KO`;
+    el.innerHTML = `<div class="meta"><span></span><span class="tools"></span></div><div class="src"></div><div class="dst"></div>`;
+    el.querySelector('.meta span').textContent = label;
+    el.querySelector('.src').textContent = src;
+    const d = el.querySelector('.dst');
+    if (dst) d.textContent = dst; else { d.textContent = '통역 중…'; d.classList.add('pending'); }
+    const tools = el.querySelector('.tools');
+    if (example) tools.innerHTML = '<span class="example">예시</span>';
+    else {
+      const r = document.createElement('button');
+      r.className = 'replay'; r.type = 'button'; r.textContent = '▶ 다시 듣기';
+      r.onclick = () => { if (el.dataset.out) speak(el.dataset.out, el.dataset.lang); };
+      tools.appendChild(r);
+    }
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    return {
+      set(text, lang){ d.textContent = text; d.classList.remove('pending'); el.dataset.out = text; el.dataset.lang = lang; log.scrollTop = log.scrollHeight; },
+      fail(msg){ d.textContent = msg; d.classList.add('pending'); },
+    };
+  }
+  function seedExamples(){
+    hasExamples = true;
+    addTurn({ who:'me', src:'안녕하세요, 체크인하려고 하는데요. 예약자 이름은 김민준입니다.', dst:"Hello, I'd like to check in. The reservation is under Kim Minjun.", example:true });
+    addTurn({ who:'them', src:'Sure. Could I see your passport, please?', dst:'네, 여권 좀 보여주시겠어요?', example:true });
+    const n = document.createElement('p'); n.className = 'empty-note';
+    n.textContent = '위는 예시예요. 말하기를 누르면 실제 대화가 여기에 쌓여요.';
+    log.appendChild(n);
+  }
+
+  /* ---------- translation ---------- */
+  async function translateGoogle(text, sl, tl, signal){
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
+    const r = await fetch(url, { signal });
+    if (!r.ok) throw new Error('번역 서버 응답 오류 ' + r.status);
+    const j = await r.json();
+    return (j[0] || []).map(x => x[0]).join('');
+  }
+  async function translateClaude(text, from, to, signal){
+    if (!S.apiKey) throw new Error('설정에서 Anthropic API 키를 넣어 주세요');
+    const tone = S.tone === 'casual' ? 'casual and friendly' : 'polite and natural';
+    let system = `You are a live spoken-language interpreter. Translate the speaker's ${from.claude} into natural spoken ${to.claude}. Tone: ${tone}. Keep names and numbers exact. Fix obvious speech-recognition errors from context. Output ONLY the translation, no quotes, no notes.`;
+    if (S.glossary.trim()) system += `\nAlways use this glossary (source = target):\n${S.glossary.trim()}`;
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST', signal,
+      headers:{
+        'content-type':'application/json',
+        'x-api-key': S.apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true',
+      },
+      body: JSON.stringify({ model: S.model || 'claude-haiku-5-5', max_tokens: 600, system, messages:[{ role:'user', content:text }] }),
+    });
+    if (!r.ok) { let m = r.status; try { m = (await r.json()).error.message; } catch {} throw new Error('Claude 오류: ' + m); }
+    const j = await r.json();
+    return j.content.filter(c => c.type === 'text').map(c => c.text).join('').trim();
+  }
+  function gcode(L){ return L === KO ? 'ko' : Object.keys(LANGS).find(k => LANGS[k] === L); }
+  function translate(text, from, to, signal, forceFast){
+    if (S.engine === 'claude' && !forceFast) return translateClaude(text, from, to, signal);
+    return translateGoogle(text, gcode(from), gcode(to), signal);
+  }
+
+  /* ---------- speech output ---------- */
+  const synth = window.speechSynthesis;
+  let voices = [];
+  function loadVoices(){ voices = synth ? synth.getVoices() : []; drawVoiceList(); }
+  if (synth) { loadVoices(); synth.onvoiceschanged = loadVoices; }
+  function pickVoice(tag){
+    const base = tag.slice(0,2).toLowerCase();
+    const list = voices.filter(v => v.lang.replace('_','-').toLowerCase().startsWith(base));
+    return list.find(v => v.lang.replace('_','-') === tag && /google|premium|enhanced|natural/i.test(v.name))
+        || list.find(v => v.lang.replace('_','-') === tag) || list[0] || null;
+  }
+  function drawVoiceList(){
+    const box = $('voiceList'); if (!box) return;
+    box.innerHTML = '';
+    for (const L of [...Object.values(LANGS), KO]) {
+      const v = pickVoice(L.tts);
+      const s = document.createElement('span');
+      s.className = v ? 'ok' : 'no';
+      s.textContent = `${L.name}: ${v ? '기기 음성' : '온라인 음성'}`;
+      box.appendChild(s);
+    }
+  }
+
+  let speaking = 0;
+  const audioQueue = [];
+  let audioBusy = false;
+  function speakStart(){ speaking++; setStatus(); if (S.echoGuard && listening && rec) { pausedForTts = true; try { rec.abort(); } catch {} } }
+  function speakEnd(){ speaking = Math.max(0, speaking-1); setStatus(); if (speaking === 0 && pausedForTts) { pausedForTts = false; if (listening) startRec(); } }
+
+  function speak(text, tag){
+    if (!text) return;
+    const v = pickVoice(tag);
+    if (synth && v) {
+      const u = new SpeechSynthesisUtterance(text);
+      u.voice = v; u.lang = v.lang; u.rate = S.rate;
+      let started = false;
+      u.onstart = () => { started = true; speakStart(); };
+      u.onend = u.onerror = () => { if (started) { started = false; speakEnd(); } };
+      synth.speak(u);
+    } else {
+      for (const chunk of chunkText(text, 180)) audioQueue.push({ chunk, tl: tag.slice(0,2) });
+      pumpAudio();
+    }
+  }
+  function chunkText(t, n){
+    const out = []; let cur = '';
+    for (const part of t.split(/(?<=[.!?。！？,，、\s])/)) {
+      if ((cur + part).length > n && cur) { out.push(cur); cur = ''; }
+      cur += part;
+    }
+    if (cur.trim()) out.push(cur);
+    return out;
+  }
+  function pumpAudio(){
+    if (audioBusy || !audioQueue.length) return;
+    audioBusy = true;
+    const { chunk, tl } = audioQueue.shift();
+    const a = new Audio(`https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(chunk)}`);
+    a.playbackRate = S.rate;
+    speakStart();
+    const done = () => { speakEnd(); audioBusy = false; pumpAudio(); };
+    a.onended = done; a.onerror = done;
+    a.play().catch(done);
+  }
+
+  /* ---------- speech input ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { $('noStt').hidden = false; }
+  let rec = null, listening = false, mode = 'me', pausedForTts = false;
+  let liveCtl = null, liveTimer = null, liveSeq = 0;
+
+  function langsFor(m){
+    const T = LANGS[S.target];
+    return m === 'me' ? { from: KO, to: T } : { from: T, to: KO };
+  }
+
+  function startRec(){
+    if (!SR) return;
+    const { from } = langsFor(mode);
+    rec = new SR();
+    rec.lang = from.stt;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    rec.onresult = onResult;
+    rec.onerror = e => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        stopAll(); setStatus('마이크 권한이 꺼져 있어요. 브라우저 주소창의 권한에서 허용해 주세요');
+      } else if (e.error === 'language-not-supported') {
+        stopAll(); setStatus(`이 기기에서 ${from.name} 음성 인식을 지원하지 않아요`);
+      }
+    };
+    rec.onend = () => { if (listening && !pausedForTts) { try { rec.start(); } catch { setTimeout(startRec, 150); } } };
+    try { rec.start(); } catch {}
+    setStatus();
+  }
+
+  function onResult(e){
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      const t = r[0].transcript.trim();
+      if (!t) continue;
+      if (r.isFinal) handleFinal(t);
+      else interim += (interim ? ' ' : '') + t;
+    }
+    $('liveSrc').textContent = interim;
+    if (interim) scheduleLive(interim); else { $('liveDst').textContent = ''; }
+  }
+
+  function scheduleLive(text){
+    if (!S.liveOn || S.engine !== 'google') return;
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(async () => {
+      const seq = ++liveSeq;
+      liveCtl?.abort(); liveCtl = new AbortController();
+      const { from, to } = langsFor(mode);
+      try {
+        const out = await translate(text, from, to, liveCtl.signal, true);
+        if (seq === liveSeq) $('liveDst').textContent = out;
+      } catch {}
+    }, 250);
+  }
+
+  let pipeline = Promise.resolve();
+  function handleFinal(text){
+    clearTimeout(liveTimer); liveSeq++; liveCtl?.abort();
+    $('liveSrc').textContent = ''; $('liveDst').textContent = '';
+    const { from, to } = langsFor(mode);
+    const who = mode;
+    const turn = addTurn({ who, src: text });
+    const job = translate(text, from, to).then(
+      out => ({ out }), err => ({ err })
+    );
+    // translate in parallel, but speak in the order sentences were spoken
+    pipeline = pipeline.then(async () => {
+      const r = await job;
+      if (r.err) { turn.fail(r.err.message || '번역에 실패했어요'); return; }
+      turn.set(r.out, to.tts);
+      speak(r.out, to.tts);
+    });
+  }
+
+  function restartFor(m){
+    mode = m;
+    try { rec?.abort(); } catch {}
+    rec = null;
+    startRec();
+    paintButtons();
+  }
+  function toggle(m){
+    if (!SR) { setStatus('이 브라우저는 음성 인식을 지원하지 않아요'); return; }
+    if (listening && mode === m) { stopAll(); return; }
+    listening = true; pausedForTts = false;
+    restartFor(m);
+  }
+  function stopAll(){
+    listening = false; pausedForTts = false;
+    try { rec?.stop(); } catch {}
+    rec = null;
+    $('liveSrc').textContent = ''; $('liveDst').textContent = '';
+    paintButtons(); setStatus();
+  }
+
+  function paintButtons(){
+    const t = $('talkBtn'), h = $('themBtn');
+    const meOn = listening && mode === 'me', themOn = listening && mode === 'them';
+    t.classList.toggle('active', meOn);
+    t.textContent = meOn ? '■ 멈추기' : '● 말하기';
+    h.classList.toggle('active', themOn);
+    h.innerHTML = themOn ? '멈추기' : `상대방<br>말하기`;
+  }
+
+  function setStatus(msg){
+    const dot = $('dot'), st = $('statusText');
+    dot.className = 'dot';
+    if (msg) { st.textContent = msg; return; }
+    const T = LANGS[S.target];
+    if (speaking) { dot.classList.add('say'); st.textContent = '통역 음성 재생 중'; return; }
+    if (listening) {
+      dot.classList.add('on');
+      st.textContent = mode === 'me' ? `듣는 중 · 한국어 → ${T.name}` : `상대방 듣는 중 · ${T.name} → 한국어`;
+    } else st.textContent = `대기 중 · 한국어 → ${T.name}`;
+  }
+
+  /* ---------- typed input ---------- */
+  $('typeForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = $('typeInput').value.trim();
+    if (!v) return;
+    $('typeInput').value = '';
+    const prev = mode; mode = 'me';
+    handleFinal(v);
+    mode = prev;
+  });
+
+  /* ---------- settings ---------- */
+  const dlg = $('settings');
+  function fillSettings(){
+    $('engine').value = S.engine; $('apiKey').value = S.apiKey; $('model').value = S.model;
+    $('tone').value = S.tone; $('glossary').value = S.glossary; $('rate').value = S.rate;
+    $('rateVal').textContent = Number(S.rate).toFixed(1);
+    $('liveOn').checked = S.liveOn; $('echoGuard').checked = S.echoGuard;
+    $('claudeFields').hidden = S.engine !== 'claude';
+    drawVoiceList();
+  }
+  $('openSettings').onclick = () => { fillSettings(); dlg.showModal(); };
+  $('engine').onchange = () => { $('claudeFields').hidden = $('engine').value !== 'claude'; };
+  $('rate').oninput = () => { $('rateVal').textContent = Number($('rate').value).toFixed(1); };
+  dlg.addEventListener('close', () => {
+    Object.assign(S, {
+      engine: $('engine').value, apiKey: $('apiKey').value.trim(), model: $('model').value.trim() || 'claude-haiku-5-5',
+      tone: $('tone').value, glossary: $('glossary').value, rate: Number($('rate').value),
+      liveOn: $('liveOn').checked, echoGuard: $('echoGuard').checked,
+    });
+    save(); setStatus();
+  });
+
+  /* ---------- boot ---------- */
+  $('talkBtn').onclick = () => toggle('me');
+  $('themBtn').onclick = () => toggle('them');
+  // keep the screen awake while interpreting, where allowed
+  let lock = null;
+  async function wake(){ try { lock = await navigator.wakeLock?.request('screen'); } catch {} }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && listening) wake(); });
+  $('talkBtn').addEventListener('click', wake); $('themBtn').addEventListener('click', wake);
+
+  drawRail(); seedExamples(); paintButtons(); setStatus();
+})();
+</script>
+</body>
+</html>
